@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "flue-github-review-triage",
+  "compatibility_date": "2026-06-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "FLUE_MODEL": "openrouter/qwen/qwen3-coder:free",
+    "FLUE_ISSUE_TRIAGE_MODEL": "openrouter/qwen/qwen3-coder:free",
+    "FLUE_PR_REVIEW_MODEL": "openrouter/qwen/qwen3-coder:free",
+    "GITHUB_WRITE_MODE": "false",
+    "TRIAGE_LABELS": "bug,enhancement,question,documentation,needs-repro,priority-low,priority-medium,priority-high",
+    "GITHUB_MAX_BODY_CHARS": "12000",
+    "GITHUB_MAX_DIFF_CHARS": "60000",
+    "NODE_ENV": "production"
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "FlueRegistry",
+        "FlueGithubIssueTriageAgent",
+        "FlueGithubPrReviewerAgent",
+        "FlueTriageIssueWorkflow",
+        "FlueReviewPrWorkflow"
+      ]
+    }
+  ]
+}

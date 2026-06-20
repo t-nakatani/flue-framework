@@ -4,15 +4,16 @@ import { createPullRequestReviewTools } from '../shared/github-tools.ts';
 import { parseGitHubRef } from '../shared/github-ref.ts';
 import { protectAgentHttp } from '../shared/http-auth.ts';
 import { modelFor } from '../shared/model.ts';
+import type { AppEnv } from '../shared/env.ts';
 
 export const description = 'Reviews one GitHub pull request and optionally posts a PR summary comment.';
 export const route = protectAgentHttp;
 
-export default createAgent(({ id }) => {
+export default createAgent<unknown, AppEnv>(({ id, env }) => {
   const ref = parseGitHubRef(id);
 
   return {
-    model: modelFor('pr-review'),
+    model: modelFor('pr-review', env),
     instructions: [
       `You are reviewing GitHub pull request ${id}.`,
       'Use the pr-review skill.',
@@ -22,8 +23,7 @@ export default createAgent(({ id }) => {
       'Post a concise review summary comment through the bound tool.',
       'If write tools report dry-run, summarize the comment that would have been posted.',
     ].join('\n'),
-    tools: createPullRequestReviewTools(ref),
+    tools: createPullRequestReviewTools(ref, env),
     skills: [prReview],
   };
 });
-

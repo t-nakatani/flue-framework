@@ -3,15 +3,17 @@ import { flue } from '@flue/runtime/routing';
 import { Hono } from 'hono';
 import issueTriageAgent from './agents/github-issue-triage.ts';
 import prReviewerAgent from './agents/github-pr-reviewer.ts';
+import type { AppEnv } from './shared/env.ts';
+import { envValue } from './shared/env.ts';
 import { encodeGitHubRef } from './shared/github-ref.ts';
 import { verifyGitHubWebhookSignature } from './shared/github-webhook.ts';
 
-const app = new Hono();
+const app = new Hono<{ Bindings: AppEnv }>();
 
 app.get('/health', (c) => c.json({ ok: true }));
 
 app.post('/webhooks/github', async (c) => {
-  const secret = process.env.GITHUB_WEBHOOK_SECRET;
+  const secret = envValue(c.env, 'GITHUB_WEBHOOK_SECRET');
   if (!secret) return c.json({ error: 'GITHUB_WEBHOOK_SECRET is not configured.' }, 500);
 
   const body = await c.req.text();

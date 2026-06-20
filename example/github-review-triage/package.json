@@ -8,18 +8,24 @@
   },
   "scripts": {
     "check": "tsc --noEmit",
+    "dev:cloudflare": "flue dev --target cloudflare",
+    "build:cloudflare": "flue build --target cloudflare",
+    "deploy:cloudflare": "wrangler deploy --config dist/flue_github_review_triage/wrangler.json",
+    "dry-run:cloudflare": "wrangler deploy --dry-run --config dist/flue_github_review_triage/wrangler.json",
     "triage:example": "flue run triage-issue --target node --payload '{\"owner\":\"OWNER\",\"repo\":\"REPO\",\"issueNumber\":123,\"apply\":false}'",
     "review:example": "flue run review-pr --target node --payload '{\"owner\":\"OWNER\",\"repo\":\"REPO\",\"pullNumber\":123,\"apply\":false}'"
   },
   "dependencies": {
     "@flue/runtime": "latest",
     "@octokit/rest": "latest",
+    "agents": "^0.14.1",
     "hono": "latest",
     "valibot": "latest"
   },
   "devDependencies": {
     "@flue/cli": "latest",
     "@types/node": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "wrangler": "latest"
   }
 }

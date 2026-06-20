@@ -2,18 +2,18 @@ import { defineTool } from '@flue/runtime';
 import * as v from 'valibot';
 import { getGitHubClient, githubWriteMode } from './github-client.ts';
 import type { GitHubRef } from './github-ref.ts';
+import type { AppEnv } from './env.ts';
+import { envValue } from './env.ts';
 
-const maxBodyChars = Number(process.env.GITHUB_MAX_BODY_CHARS ?? 12_000);
-const maxDiffChars = Number(process.env.GITHUB_MAX_DIFF_CHARS ?? 60_000);
-
-export function createIssueTriageTools(ref: GitHubRef) {
+export function createIssueTriageTools(ref: GitHubRef, env?: AppEnv) {
+  const maxBodyChars = Number(envValue(env, 'GITHUB_MAX_BODY_CHARS') ?? 12_000);
   return [
     defineTool({
       name: 'get_bound_issue_context',
       description: 'Read the GitHub issue bound to this agent, including recent comments and repository labels.',
       parameters: v.object({}),
       async execute() {
-        const client = getGitHubClient();
+        const client = getGitHubClient(env);
         const [issue, comments, labels] = await Promise.all([
           client.rest.issues.get({
             owner: ref.owner,
@@ -47,7 +47,7 @@ export function createIssueTriageTools(ref: GitHubRef) {
             body: truncate(comment.body ?? '', 4_000),
           })),
           repositoryLabels: labels.data.map((label) => label.name),
-          allowedLabels: allowedTriageLabels(),
+          allowedLabels: allowedTriageLabels(env),
         });
       },
     }),
@@ -58,18 +58,18 @@ export function createIssueTriageTools(ref: GitHubRef) {
         labels: v.array(v.pipe(v.string(), v.description('Repository label to add. Must be an allowed triage label.'))),
       }),
       async execute({ labels }) {
-        const allowed = allowedTriageLabels();
+        const allowed = allowedTriageLabels(env);
         const selected = labels.filter((label) => allowed.length === 0 || allowed.includes(label));
 
         if (selected.length === 0) {
           return `No labels were added. Allowed labels: ${allowed.join(', ') || '(not restricted)'}`;
         }
 
-        if (!githubWriteMode()) {
+        if (!githubWriteMode(env)) {
           return `[dry-run] Would add labels to ${formatRef(ref)}: ${selected.join(', ')}`;
         }
 
-        await getGitHubClient().rest.issues.addLabels({
+        await getGitHubClient(env).rest.issues.addLabels({
           owner: ref.owner,
           repo: ref.repo,
           issue_number: ref.number,
@@ -86,11 +86,11 @@ export function createIssueTriageTools(ref: GitHubRef) {
         body: v.pipe(v.string(), v.description('Markdown body for the issue comment.')),
       }),
       async execute({ body }) {
-        if (!githubWriteMode()) {
+        if (!githubWriteMode(env)) {
           return `[dry-run] Would comment on ${formatRef(ref)}:\n\n${body}`;
         }
 
-        await getGitHubClient().rest.issues.createComment({
+        await getGitHubClient(env).rest.issues.createComment({
           owner: ref.owner,
           repo: ref.repo,
           issue_number: ref.number,
@@ -103,14 +103,17 @@ export function createIssueTriageTools(ref: GitHubRef) {
   ];
 }
 
-export function createPullRequestReviewTools(ref: GitHubRef) {
+export function createPullRequestReviewTools(ref: GitHubRef, env?: AppEnv) {
+  const maxBodyChars = Number(envValue(env, 'GITHUB_MAX_BODY_CHARS') ?? 12_000);
+  const maxDiffChars = Number(envValue(env, 'GITHUB_MAX_DIFF_CHARS') ?? 60_000);
+
   return [
     defineTool({
       name: 'get_bound_pull_request_context',
       description: 'Read the GitHub pull request bound to this agent, including changed files.',
       parameters: v.object({}),
       async execute() {
-        const client = getGitHubClient();
+        const client = getGitHubClient(env);
         const [pull, files] = await Promise.all([
           client.rest.pulls.get({
             owner: ref.owner,
@@ -152,7 +155,7 @@ export function createPullRequestReviewTools(ref: GitHubRef) {
       description: 'Read the raw unified diff for the GitHub pull request bound to this agent.',
       parameters: v.object({}),
       async execute() {
-        const diff = await getGitHubClient().request('GET /repos/{owner}/{repo}/pulls/{pull_number}', {
+        const diff = await getGitHubClient(env).request('GET /repos/{owner}/{repo}/pulls/{pull_number}', {
           owner: ref.owner,
           repo: ref.repo,
           pull_number: ref.number,
@@ -171,11 +174,11 @@ export function createPullRequestReviewTools(ref: GitHubRef) {
         body: v.pipe(v.string(), v.description('Markdown body for the pull request comment.')),
       }),
       async execute({ body }) {
-        if (!githubWriteMode()) {
+        if (!githubWriteMode(env)) {
           return `[dry-run] Would comment on PR ${formatRef(ref)}:\n\n${body}`;
         }
 
-        await getGitHubClient().rest.issues.createComment({
+        await getGitHubClient(env).rest.issues.createComment({
           owner: ref.owner,
           repo: ref.repo,
           issue_number: ref.number,
@@ -192,18 +195,18 @@ export function createPullRequestReviewTools(ref: GitHubRef) {
         labels: v.array(v.pipe(v.string(), v.description('Repository label to add. Must be an allowed triage label.'))),
       }),
       async execute({ labels }) {
-        const allowed = allowedTriageLabels();
+        const allowed = allowedTriageLabels(env);
         const selected = labels.filter((label) => allowed.length === 0 || allowed.includes(label));
 
         if (selected.length === 0) {
           return `No labels were added. Allowed labels: ${allowed.join(', ') || '(not restricted)'}`;
         }
 
-        if (!githubWriteMode()) {
+        if (!githubWriteMode(env)) {
           return `[dry-run] Would add labels to PR ${formatRef(ref)}: ${selected.join(', ')}`;
         }
 
-        await getGitHubClient().rest.issues.addLabels({
+        await getGitHubClient(env).rest.issues.addLabels({
           owner: ref.owner,
           repo: ref.repo,
           issue_number: ref.number,
@@ -216,8 +219,8 @@ export function createPullRequestReviewTools(ref: GitHubRef) {
   ];
 }
 
-function allowedTriageLabels(): string[] {
-  return (process.env.TRIAGE_LABELS ?? '')
+function allowedTriageLabels(env?: AppEnv): string[] {
+  return (envValue(env, 'TRIAGE_LABELS') ?? '')
     .split(',')
     .map((label) => label.trim())
     .filter(Boolean);
@@ -235,4 +238,3 @@ function truncate(value: string, maxChars: number): string {
   if (value.length <= maxChars) return value;
   return `${value.slice(0, maxChars)}\n\n[truncated ${value.length - maxChars} chars]`;
 }
-

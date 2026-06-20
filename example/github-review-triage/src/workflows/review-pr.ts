@@ -4,6 +4,7 @@ import prReview from '../skills/pr-review/SKILL.md' with { type: 'skill' };
 import { createPullRequestReviewTools } from '../shared/github-tools.ts';
 import type { GitHubRef } from '../shared/github-ref.ts';
 import { modelFor } from '../shared/model.ts';
+import type { AppEnv } from '../shared/env.ts';
 
 type Payload = {
   owner: string;
@@ -12,8 +13,8 @@ type Payload = {
   apply?: boolean;
 };
 
-const reviewerAgent = createAgent(() => ({
-  model: modelFor('pr-review'),
+const reviewerAgent = createAgent<Payload, AppEnv>(({ env }) => ({
+  model: modelFor('pr-review', env),
   instructions: [
     'You review one GitHub pull request.',
     'Inspect PR context and diff before giving findings.',
@@ -38,7 +39,7 @@ const resultSchema = v.object({
   comment: v.string(),
 });
 
-export async function run({ init, payload }: FlueContext<Payload>) {
+export async function run({ init, payload, env }: FlueContext<Payload, AppEnv>) {
   const ref: GitHubRef = {
     owner: payload.owner,
     repo: payload.repo,
@@ -46,7 +47,7 @@ export async function run({ init, payload }: FlueContext<Payload>) {
   };
 
   const harness = await init(reviewerAgent, {
-    tools: createPullRequestReviewTools(ref),
+    tools: createPullRequestReviewTools(ref, env),
   });
   const session = await harness.session();
 
@@ -61,4 +62,3 @@ export async function run({ init, payload }: FlueContext<Payload>) {
 
   return response.data;
 }
-

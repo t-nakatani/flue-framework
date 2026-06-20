@@ -4,6 +4,7 @@ import issueTriage from '../skills/issue-triage/SKILL.md' with { type: 'skill' }
 import { createIssueTriageTools } from '../shared/github-tools.ts';
 import type { GitHubRef } from '../shared/github-ref.ts';
 import { modelFor } from '../shared/model.ts';
+import type { AppEnv } from '../shared/env.ts';
 
 type Payload = {
   owner: string;
@@ -12,8 +13,8 @@ type Payload = {
   apply?: boolean;
 };
 
-const triageAgent = createAgent(() => ({
-  model: modelFor('issue-triage'),
+const triageAgent = createAgent<Payload, AppEnv>(({ env }) => ({
+  model: modelFor('issue-triage', env),
   instructions: [
     'You triage one GitHub issue.',
     'Inspect issue context first.',
@@ -32,7 +33,7 @@ const resultSchema = v.object({
   needsHuman: v.boolean(),
 });
 
-export async function run({ init, payload }: FlueContext<Payload>) {
+export async function run({ init, payload, env }: FlueContext<Payload, AppEnv>) {
   const ref: GitHubRef = {
     owner: payload.owner,
     repo: payload.repo,
@@ -40,7 +41,7 @@ export async function run({ init, payload }: FlueContext<Payload>) {
   };
 
   const harness = await init(triageAgent, {
-    tools: createIssueTriageTools(ref),
+    tools: createIssueTriageTools(ref, env),
   });
   const session = await harness.session();
 
@@ -55,4 +56,3 @@ export async function run({ init, payload }: FlueContext<Payload>) {
 
   return response.data;
 }
-

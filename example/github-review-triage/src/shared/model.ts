@@ -1,9 +1,12 @@
+import type { AppEnv } from './env.ts';
+import { envValue } from './env.ts';
+
 const defaultFreeOpenRouterModel = 'openrouter/qwen/qwen3-coder:free';
 
-export function modelFor(kind: 'issue-triage' | 'pr-review'): string {
+export function modelFor(kind: 'issue-triage' | 'pr-review', env?: AppEnv): string {
   if (kind === 'issue-triage') {
-    return process.env.FLUE_ISSUE_TRIAGE_MODEL ?? process.env.FLUE_MODEL ?? defaultFreeOpenRouterModel;
+    return envValue(env, 'FLUE_ISSUE_TRIAGE_MODEL') ?? envValue(env, 'FLUE_MODEL') ?? defaultFreeOpenRouterModel;
   }
 
-  return process.env.FLUE_PR_REVIEW_MODEL ?? process.env.FLUE_MODEL ?? defaultFreeOpenRouterModel;
+  return envValue(env, 'FLUE_PR_REVIEW_MODEL') ?? envValue(env, 'FLUE_MODEL') ?? defaultFreeOpenRouterModel;
 }
