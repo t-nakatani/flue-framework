@@ -4,9 +4,9 @@
   "compatibility_date": "2026-06-20",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
-    "FLUE_MODEL": "openrouter/qwen/qwen3-coder:free",
-    "FLUE_ISSUE_TRIAGE_MODEL": "openrouter/qwen/qwen3-coder:free",
-    "FLUE_PR_REVIEW_MODEL": "openrouter/qwen/qwen3-coder:free",
+    "FLUE_MODEL": "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+    "FLUE_ISSUE_TRIAGE_MODEL": "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+    "FLUE_PR_REVIEW_MODEL": "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
     "GITHUB_WRITE_MODE": "true",
     "TRIAGE_LABELS": "bug,enhancement,question,documentation,needs-repro,priority-low,priority-medium,priority-high",
     "GITHUB_MAX_BODY_CHARS": "12000",
