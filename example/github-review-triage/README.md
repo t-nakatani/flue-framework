@@ -1,0 +1,245 @@
+# GitHub Review & Triage Agents
+
+Flue で GitHub の issue triage と pull request review を行う example です。
+
+## What It Builds
+
+この example には、2 つの addressable agent と 2 つの workflow が入っています。
+
+```text
+src/
+  app.ts
+  agents/
+    github-issue-triage.ts
+    github-pr-reviewer.ts
+  workflows/
+    triage-issue.ts
+    review-pr.ts
+  shared/
+    github-client.ts
+    github-ref.ts
+    github-tools.ts
+    github-webhook.ts
+    http-auth.ts
+    model.ts
+  skills/
+    issue-triage/SKILL.md
+    pr-review/SKILL.md
+```
+
+### Addressable Agents
+
+- `github-issue-triage`
+  - GitHub issue webhook から dispatch される
+  - issue context を読み、ラベル付けやコメントを行う
+- `github-pr-reviewer`
+  - Pull request webhook から dispatch される
+  - PR metadata、changed files、diff を読み、レビューコメントを行う
+
+### Workflows
+
+- `triage-issue`
+  - 手動で特定 issue を triage する finite job
+- `review-pr`
+  - 手動で特定 PR を review する finite job
+
+## Cheapest Practical Setup
+
+最初は次の構成が安価で安全です。
+
+1. Local Node.js target で実行
+2. LLM は OpenRouter の無料 coding model
+3. `GITHUB_WRITE_MODE=false` の dry-run
+4. 必要なときだけ `GITHUB_WRITE_MODE=true`
+5. Webhook 公開は無料枠の `cloudflared tunnel` または `ngrok`
+
+現在の第一候補は `openrouter/qwen/qwen3-coder:free` です。OpenRouter の model id は `qwen/qwen3-coder:free` ですが、Flue/Pi の provider prefix を付けるため、この example では `openrouter/qwen/qwen3-coder:free` と指定します。
+
+PR review の品質や安定性が足りない場合だけ、有料の小型/中型 model に切り替えます。issue triage は無料 model でも比較的回しやすいです。
+
+Cloudflare に deploy する場合は、公式 docs 上は `cloudflare/*` model を使うと Cloudflare 組み込み model access を使えます。すでに Cloudflare に寄せるなら安くできますが、初回の理解と検証は local Node.js の方が単純です。
+
+## Recommended Free OpenRouter Model
+
+2026-06-20 時点では、PR review と issue triage の両方に使う無料 model として `openrouter/qwen/qwen3-coder:free` を推奨します。
+
+理由:
+
+- OpenRouter 上で prompt/completion price が `0`
+- coding 向け model
+- 1M token context
+- tool calling 対応
+- expiration date が設定されていない
+
+代替候補:
+
+| Model spec | 向き | 注意 |
+| --- | --- | --- |
+| `openrouter/qwen/qwen3-coder:free` | 第一候補。PR review / coding / agentic work | structured output は弱い可能性がある |
+| `openrouter/cohere/north-mini-code:free` | 軽めの coding agent | 256K context |
+| `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` | 長文 reasoning / orchestration | OpenRouter benchmark 上の coding score は Qwen Coder より低め |
+| `openrouter/google/gemma-4-31b-it:free` | structured output を重視する軽作業 | coding/agentic 指標は中程度 |
+| `openrouter/openrouter/free` | とにかく無料 routing | model がランダムになり、レビュー品質が安定しにくい |
+
+この用途では、ランダム router の `openrouter/openrouter/free` は避けます。PR review は再現性と tool calling の安定性が重要なので、明示的な model を固定する方が運用しやすいです。
+
+OpenRouter の `:free` model には利用制限があります。2026-06-20 時点の公式 docs では、無料 model variant は最大 20 requests/minute、購入 credits が $10 未満の account は 50 requests/day、$10 以上購入済みなら 1000 requests/day です。大量の webhook を受ける repo では、最初から dry-run と対象 repo 限定で運用してください。
+
+## Required Accounts And Settings
+
+### 1. Node.js
+
+Flue の quickstart では Node.js `>=22.19.0` が必要です。
+
+### 2. LLM Provider
+
+local Node.js で始める場合、少なくとも 1 つの LLM provider key が必要です。最安構成では OpenRouter key を使い、無料 model を指定します。
+
+推奨:
+
+```env
+OPENROUTER_API_KEY="..."
+FLUE_MODEL="openrouter/qwen/qwen3-coder:free"
+FLUE_ISSUE_TRIAGE_MODEL="openrouter/qwen/qwen3-coder:free"
+FLUE_PR_REVIEW_MODEL="openrouter/qwen/qwen3-coder:free"
+```
+
+PR review の精度を上げる場合は、有料 model を別途指定します。例:
+
+```env
+FLUE_PR_REVIEW_MODEL="anthropic/claude-sonnet-4-6"
+ANTHROPIC_API_KEY="..."
+```
+
+### 3. GitHub Token
+
+最小構成では fine-grained personal access token で始められます。
+
+Repository access:
+
+- 対象 repo のみに限定
+
+Permissions:
+
+- Metadata: read
+- Contents: read
+- Issues: read/write
+- Pull requests: read
+
+この example は PR への summary comment を issue comment API で投稿します。GitHub では PR も issue として comment できるため、PR summary comment には `Issues: write` が必要です。
+
+```env
+GITHUB_TOKEN="github_pat_..."
+```
+
+長期運用では GitHub App の方が安全です。権限を repo 単位で絞り、installation token を短命にできます。
+
+### 4. GitHub Webhook
+
+GitHub repo の `Settings > Webhooks` で webhook を作ります。
+
+Payload URL:
+
+```text
+https://<your-public-host>/webhooks/github
+```
+
+Content type:
+
+```text
+application/json
+```
+
+Secret:
+
+```env
+GITHUB_WEBHOOK_SECRET="long-random-string"
+```
+
+Events:
+
+- Issues
+- Pull requests
+
+### 5. Write Mode
+
+初期値は dry-run です。
+
+```env
+GITHUB_WRITE_MODE=false
+```
+
+実際に GitHub にコメントやラベルを反映する場合:
+
+```env
+GITHUB_WRITE_MODE=true
+```
+
+## Install
+
+```bash
+npm install
+```
+
+## Environment
+
+```bash
+cp .env.example .env
+```
+
+`.env` に provider key、GitHub token、webhook secret を入れます。`.env` は commit しないでください。
+
+## Run Manually
+
+Issue triage workflow:
+
+```bash
+npx flue run triage-issue --target node --payload '{"owner":"OWNER","repo":"REPO","issueNumber":123,"apply":false}'
+```
+
+PR review workflow:
+
+```bash
+npx flue run review-pr --target node --payload '{"owner":"OWNER","repo":"REPO","pullNumber":123,"apply":false}'
+```
+
+`apply:true` を指定しても、`GITHUB_WRITE_MODE=true` でない限り GitHub への書き込み tool は dry-run になります。
+
+## Run As Webhook App
+
+Flue の Node target で HTTP server を起動し、GitHub webhook の payload URL を `/webhooks/github` に向けます。開発時は `cloudflared tunnel` や `ngrok` で local server を公開してください。
+
+## Direct Agent Access
+
+agent は次の ID 形式で GitHub resource に bind します。
+
+```text
+OWNER/REPO#123
+```
+
+例:
+
+```bash
+npx flue connect github-issue-triage OWNER/REPO#123
+npx flue connect github-pr-reviewer OWNER/REPO#123
+```
+
+deployed HTTP access を公開する場合は、`AGENT_HTTP_TOKEN` を設定してください。未設定の production では直接 HTTP route は拒否されます。
+
+## Safety Notes
+
+- `GITHUB_WRITE_MODE=false` で挙動を確認してから write mode にする
+- token は対象 repo のみに限定する
+- `TRIAGE_LABELS` で agent が追加できる label を制限する
+- PR review は最初 `haiku` で試し、品質が足りない場合だけ `sonnet` に切り替える
+- 大きな diff は `GITHUB_MAX_DIFF_CHARS` で切り詰める
+
+## Official Docs Used
+
+- Flue Getting Started: https://flueframework.com/docs/getting-started/quickstart/
+- Agents: https://flueframework.com/docs/guide/building-agents/
+- Workflows: https://flueframework.com/docs/guide/workflows/
+- Tools: https://flueframework.com/docs/guide/tools/
+- Skills: https://flueframework.com/docs/guide/skills/
+- Sandboxes: https://flueframework.com/docs/guide/sandboxes/
+- Channels: https://flueframework.com/docs/guide/channels/
