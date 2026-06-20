@@ -7,7 +7,7 @@
     "FLUE_MODEL": "openrouter/qwen/qwen3-coder:free",
     "FLUE_ISSUE_TRIAGE_MODEL": "openrouter/qwen/qwen3-coder:free",
     "FLUE_PR_REVIEW_MODEL": "openrouter/qwen/qwen3-coder:free",
-    "GITHUB_WRITE_MODE": "false",
+    "GITHUB_WRITE_MODE": "true",
     "TRIAGE_LABELS": "bug,enhancement,question,documentation,needs-repro,priority-low,priority-medium,priority-high",
     "GITHUB_MAX_BODY_CHARS": "12000",
     "GITHUB_MAX_DIFF_CHARS": "60000",
