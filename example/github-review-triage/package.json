@@ -12,6 +12,10 @@
     "build:cloudflare": "flue build --target cloudflare",
     "deploy:cloudflare": "wrangler deploy --config dist/flue_github_review_triage/wrangler.json",
     "dry-run:cloudflare": "wrangler deploy --dry-run --config dist/flue_github_review_triage/wrangler.json",
+    "secret:openrouter": "wrangler secret put OPENROUTER_API_KEY --config wrangler.jsonc",
+    "secret:github-token": "wrangler secret put GITHUB_TOKEN --config wrangler.jsonc",
+    "secret:github-webhook": "wrangler secret put GITHUB_WEBHOOK_SECRET --config wrangler.jsonc",
+    "secret:agent-http": "wrangler secret put AGENT_HTTP_TOKEN --config wrangler.jsonc",
     "triage:example": "flue run triage-issue --target node --payload '{\"owner\":\"OWNER\",\"repo\":\"REPO\",\"issueNumber\":123,\"apply\":false}'",
     "review:example": "flue run review-pr --target node --payload '{\"owner\":\"OWNER\",\"repo\":\"REPO\",\"pullNumber\":123,\"apply\":false}'"
   },

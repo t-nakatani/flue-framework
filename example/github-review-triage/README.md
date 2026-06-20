@@ -156,16 +156,26 @@ cp .dev.vars.example .dev.vars
 
 Production secrets は Wrangler で登録します。
 
+以下は `example/github-review-triage/` directory で実行してください。
+
 ```bash
-npx wrangler secret put OPENROUTER_API_KEY
-npx wrangler secret put GITHUB_TOKEN
-npx wrangler secret put GITHUB_WEBHOOK_SECRET
+npm run secret:openrouter
+npm run secret:github-token
+npm run secret:github-webhook
 ```
 
 直接 agent HTTP route も外部に公開するなら、operator token も設定します。
 
 ```bash
-npx wrangler secret put AGENT_HTTP_TOKEN
+npm run secret:agent-http
+```
+
+repo root から実行する場合は、Wrangler config path を明示します。
+
+```bash
+npx wrangler secret put OPENROUTER_API_KEY --config example/github-review-triage/wrangler.jsonc
+npx wrangler secret put GITHUB_TOKEN --config example/github-review-triage/wrangler.jsonc
+npx wrangler secret put GITHUB_WEBHOOK_SECRET --config example/github-review-triage/wrangler.jsonc
 ```
 
 `GITHUB_WRITE_MODE` や model 指定などの非 secret 値は `wrangler.jsonc` の `vars` に入れています。
