@@ -8,8 +8,6 @@
 
 1. `001-github-issue-to-pr.md`
    - GitHub issue から実装指示を送り、GitHub branch と pull request を作る agent の設計
-2. `002-provider-subscription-tokens.md`
-   - GLM / Kimi の API key と subscription / recharge を Flue から使う場合の設計
 
 ## 書き方
 

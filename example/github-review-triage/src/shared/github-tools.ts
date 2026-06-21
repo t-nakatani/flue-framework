@@ -427,7 +427,7 @@ export function createIssueImplementationTools(ref: GitHubRef, env?: AppEnv) {
           throw new Error('Refusing to open a pull request before at least one file has been written.');
         }
 
-        const finalBody = `${body.trim()}\n\nCloses #${ref.number}`;
+        const finalBody = `${body.trim()}\n\nCloses ${formatRef(ref)}`;
 
         if (!githubWriteMode(env)) {
           return `[dry-run] Would create PR from ${branch} to ${repo.baseBranch}:\n\n${title}\n\n${finalBody}`;
@@ -615,7 +615,7 @@ function assertSafePath(path: string): void {
   const normalized = path.replaceAll('\\', '/').replace(/^\/+/, '');
   const segments = normalized.split('/');
 
-  if (path !== normalized || segments.includes('..')) {
+  if (path !== normalized || segments.includes('..') || segments.includes('')) {
     throw new Error(`Unsafe path: ${path}`);
   }
 
@@ -631,6 +631,10 @@ function isDeniedPath(path: string): boolean {
     path === '.dev.vars' ||
     path.startsWith('.dev.vars.') ||
     path === 'package-lock.json' ||
+    path === 'pnpm-lock.yaml' ||
+    path === 'yarn.lock' ||
+    path === 'bun.lock' ||
+    path === 'bun.lockb' ||
     path === '.git' ||
     path.startsWith('.git/') ||
     path === 'node_modules' ||
@@ -663,7 +667,16 @@ function sanitizeBranchSlug(value: string): string {
 }
 
 function looksBinary(value: string): boolean {
-  return value.includes('\u0000');
+  for (const char of value) {
+    const code = char.charCodeAt(0);
+    const allowedWhitespace = code === 9 || code === 10 || code === 13;
+
+    if ((code < 32 && !allowedWhitespace) || code === 127) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 async function ensureLabel(

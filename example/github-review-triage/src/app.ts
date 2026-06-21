@@ -137,7 +137,13 @@ function shouldImplementIssue(
   const labels = issueLabelNames(payload.issue);
   const trigger = envValue(env, 'IMPLEMENTATION_TRIGGER_LABEL') ?? 'agent:implement';
 
-  return labels.includes(trigger) && !labels.includes('agent:pr-opened') && !labels.includes('agent:in-progress');
+  return (
+    labels.includes(trigger) &&
+    !labels.includes('agent:in-progress') &&
+    !labels.includes('agent:pr-opened') &&
+    !labels.includes('agent:failed') &&
+    !labels.includes('agent:needs-human')
+  );
 }
 
 function shouldTriageIssue(payload: GitHubWebhookPayload): payload is GitHubWebhookPayload & {
