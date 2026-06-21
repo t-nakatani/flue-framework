@@ -6,6 +6,7 @@ import issueTriageAgent from './agents/github-issue-triage.ts';
 import prReviewerAgent from './agents/github-pr-reviewer.ts';
 import type { AppEnv } from './shared/env.ts';
 import { envValue } from './shared/env.ts';
+import { getGitHubClient, githubWriteMode } from './shared/github-client.ts';
 import { encodeGitHubRef } from './shared/github-ref.ts';
 import { verifyGitHubWebhookSignature } from './shared/github-webhook.ts';
 
@@ -31,6 +32,11 @@ app.post('/webhooks/github', async (c) => {
   const payload = JSON.parse(body) as GitHubWebhookPayload;
 
   if (eventName === 'issues' && shouldImplementIssue(payload, c.env)) {
+    const reserved = await reserveImplementationIssue(payload, c.env);
+    if (!reserved) {
+      return c.json({ accepted: false, reason: 'Implementation issue is already reserved or terminal.' });
+    }
+
     const id = encodeGitHubRef({
       owner: payload.repository.owner.login,
       repo: payload.repository.name,
@@ -148,6 +154,39 @@ function shouldImplementIssue(
     !labels.includes('agent:failed') &&
     !labels.includes('agent:needs-human')
   );
+}
+
+async function reserveImplementationIssue(
+  payload: GitHubWebhookPayload & { issue: NonNullable<GitHubWebhookPayload['issue']> },
+  env: AppEnv,
+): Promise<boolean> {
+  if (!githubWriteMode(env)) return true;
+
+  const client = getGitHubClient(env);
+  const currentIssue = await client.rest.issues.get({
+    owner: payload.repository.owner.login,
+    repo: payload.repository.name,
+    issue_number: payload.issue.number,
+  });
+  const labels = currentIssue.data.labels.map((label) => (typeof label === 'string' ? label : label.name)).filter(Boolean);
+
+  if (
+    labels.includes('agent:in-progress') ||
+    labels.includes('agent:pr-opened') ||
+    labels.includes('agent:failed') ||
+    labels.includes('agent:needs-human')
+  ) {
+    return false;
+  }
+
+  await client.rest.issues.addLabels({
+    owner: payload.repository.owner.login,
+    repo: payload.repository.name,
+    issue_number: payload.issue.number,
+    labels: ['agent:in-progress'],
+  });
+
+  return true;
 }
 
 function shouldTriageIssue(payload: GitHubWebhookPayload): payload is GitHubWebhookPayload & {
