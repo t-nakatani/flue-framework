@@ -9,10 +9,10 @@ export function encodeGitHubRef(ref: GitHubRef): string {
 }
 
 export function parseGitHubRef(id: string): GitHubRef {
-  const match = /^([^/]+)\/([^#]+)#(\d+)$/.exec(id);
+  const match = /^([^/]+)\/([^#]+)#(\d+)(?:@.+)?$/.exec(id);
 
   if (!match) {
-    throw new Error(`Invalid GitHub agent id "${id}". Expected OWNER/REPO#NUMBER.`);
+    throw new Error(`Invalid GitHub agent id "${id}". Expected OWNER/REPO#NUMBER or OWNER/REPO#NUMBER@SUFFIX.`);
   }
 
   return {
@@ -21,4 +21,3 @@ export function parseGitHubRef(id: string): GitHubRef {
     number: Number(match[3]),
   };
 }
-

@@ -73,11 +73,12 @@ app.post('/webhooks/github', async (c) => {
   }
 
   if (eventName === 'pull_request' && shouldReviewPullRequest(payload)) {
-    const id = encodeGitHubRef({
+    const ref = encodeGitHubRef({
       owner: payload.repository.owner.login,
       repo: payload.repository.name,
       number: payload.pull_request.number,
     });
+    const id = `${ref}@${payload.pull_request.head.sha.slice(0, 12)}`;
 
     const receipt = await dispatch(prReviewerAgent, {
       id,
@@ -121,6 +122,9 @@ type GitHubWebhookPayload = {
     title: string;
     html_url: string;
     draft?: boolean;
+    head: {
+      sha: string;
+    };
   };
 };
 

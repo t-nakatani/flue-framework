@@ -40,6 +40,7 @@ src/
 - `github-pr-reviewer`
   - Pull request webhook から dispatch される
   - PR metadata、changed files、diff を読み、レビューコメントを行う
+  - PR review は head commit SHA ごとに別 agent session として実行される
 
 ### Workflows
 
