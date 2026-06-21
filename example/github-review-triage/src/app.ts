@@ -1,10 +1,12 @@
 import { dispatch } from '@flue/runtime';
 import { flue } from '@flue/runtime/routing';
 import { Hono } from 'hono';
+import issueImplementerAgent from './agents/github-issue-implementer.ts';
 import issueTriageAgent from './agents/github-issue-triage.ts';
 import prReviewerAgent from './agents/github-pr-reviewer.ts';
 import type { AppEnv } from './shared/env.ts';
 import { envValue } from './shared/env.ts';
+import { getGitHubClient, githubWriteMode } from './shared/github-client.ts';
 import { encodeGitHubRef } from './shared/github-ref.ts';
 import { verifyGitHubWebhookSignature } from './shared/github-webhook.ts';
 
@@ -29,6 +31,32 @@ app.post('/webhooks/github', async (c) => {
   const deliveryId = c.req.header('x-github-delivery') ?? '';
   const payload = JSON.parse(body) as GitHubWebhookPayload;
 
+  if (eventName === 'issues' && shouldImplementIssue(payload, c.env)) {
+    const reserved = await reserveImplementationIssue(payload, c.env);
+    if (!reserved) {
+      return c.json({ accepted: false, reason: 'Implementation issue is already reserved or terminal.' });
+    }
+
+    const id = encodeGitHubRef({
+      owner: payload.repository.owner.login,
+      repo: payload.repository.name,
+      number: payload.issue.number,
+    });
+
+    const receipt = await dispatch(issueImplementerAgent, {
+      id,
+      input: {
+        type: 'github.issue.implementation',
+        deliveryId,
+        action: payload.action,
+        title: payload.issue.title,
+        url: payload.issue.html_url,
+      },
+    });
+
+    return c.json({ accepted: true, agent: 'github-issue-implementer', id, receipt }, 202);
+  }
+
   if (eventName === 'issues' && shouldTriageIssue(payload)) {
     const id = encodeGitHubRef({
       owner: payload.repository.owner.login,
@@ -51,11 +79,12 @@ app.post('/webhooks/github', async (c) => {
   }
 
   if (eventName === 'pull_request' && shouldReviewPullRequest(payload)) {
-    const id = encodeGitHubRef({
+    const ref = encodeGitHubRef({
       owner: payload.repository.owner.login,
       repo: payload.repository.name,
       number: payload.pull_request.number,
     });
+    const id = `${ref}@${payload.pull_request.head.sha.slice(0, 12)}`;
 
     const receipt = await dispatch(prReviewerAgent, {
       id,
@@ -90,14 +119,75 @@ type GitHubWebhookPayload = {
     number: number;
     title: string;
     html_url: string;
+    body?: string | null;
+    pull_request?: unknown;
+    labels?: Array<string | { name?: string | null }>;
   };
   pull_request?: {
     number: number;
     title: string;
     html_url: string;
     draft?: boolean;
+    head: {
+      sha: string;
+    };
   };
 };
+
+function shouldImplementIssue(
+  payload: GitHubWebhookPayload,
+  env: AppEnv,
+): payload is GitHubWebhookPayload & {
+  issue: NonNullable<GitHubWebhookPayload['issue']>;
+} {
+  if (!['opened', 'reopened', 'edited', 'labeled'].includes(payload.action ?? '')) return false;
+  if (!payload.issue || payload.issue.pull_request) return false;
+  if (!payload.issue.body?.trim()) return false;
+
+  const labels = issueLabelNames(payload.issue);
+  const trigger = envValue(env, 'IMPLEMENTATION_TRIGGER_LABEL') ?? 'agent:implement';
+
+  return (
+    labels.includes(trigger) &&
+    !labels.includes('agent:in-progress') &&
+    !labels.includes('agent:pr-opened') &&
+    !labels.includes('agent:failed') &&
+    !labels.includes('agent:needs-human')
+  );
+}
+
+async function reserveImplementationIssue(
+  payload: GitHubWebhookPayload & { issue: NonNullable<GitHubWebhookPayload['issue']> },
+  env: AppEnv,
+): Promise<boolean> {
+  if (!githubWriteMode(env)) return true;
+
+  const client = getGitHubClient(env);
+  const currentIssue = await client.rest.issues.get({
+    owner: payload.repository.owner.login,
+    repo: payload.repository.name,
+    issue_number: payload.issue.number,
+  });
+  const labels = currentIssue.data.labels.map((label) => (typeof label === 'string' ? label : label.name)).filter(Boolean);
+
+  if (
+    labels.includes('agent:in-progress') ||
+    labels.includes('agent:pr-opened') ||
+    labels.includes('agent:failed') ||
+    labels.includes('agent:needs-human')
+  ) {
+    return false;
+  }
+
+  await client.rest.issues.addLabels({
+    owner: payload.repository.owner.login,
+    repo: payload.repository.name,
+    issue_number: payload.issue.number,
+    labels: ['agent:in-progress'],
+  });
+
+  return true;
+}
 
 function shouldTriageIssue(payload: GitHubWebhookPayload): payload is GitHubWebhookPayload & {
   issue: NonNullable<GitHubWebhookPayload['issue']>;
@@ -115,4 +205,10 @@ function shouldReviewPullRequest(payload: GitHubWebhookPayload): payload is GitH
     pullRequest !== undefined &&
     pullRequest.draft !== true
   );
+}
+
+function issueLabelNames(issue: NonNullable<GitHubWebhookPayload['issue']>): string[] {
+  return (issue.labels ?? [])
+    .map((label) => (typeof label === 'string' ? label : label.name))
+    .filter((label): label is string => Boolean(label));
 }
