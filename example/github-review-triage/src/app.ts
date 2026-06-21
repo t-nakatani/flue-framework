@@ -179,12 +179,17 @@ async function reserveImplementationIssue(
     return false;
   }
 
-  await client.rest.issues.addLabels({
-    owner: payload.repository.owner.login,
-    repo: payload.repository.name,
-    issue_number: payload.issue.number,
-    labels: ['agent:in-progress'],
-  });
+  try {
+    await client.rest.issues.addLabels({
+      owner: payload.repository.owner.login,
+      repo: payload.repository.name,
+      issue_number: payload.issue.number,
+      labels: ['agent:in-progress'],
+    });
+  } catch (error) {
+    if (!isNotFoundError(error)) throw error;
+    return true;
+  }
 
   return true;
 }
@@ -211,4 +216,8 @@ function issueLabelNames(issue: NonNullable<GitHubWebhookPayload['issue']>): str
   return (issue.labels ?? [])
     .map((label) => (typeof label === 'string' ? label : label.name))
     .filter((label): label is string => Boolean(label));
+}
+
+function isNotFoundError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'status' in error && error.status === 404;
 }
