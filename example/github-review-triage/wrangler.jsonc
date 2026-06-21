@@ -7,8 +7,16 @@
     "FLUE_MODEL": "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
     "FLUE_ISSUE_TRIAGE_MODEL": "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
     "FLUE_PR_REVIEW_MODEL": "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+    "FLUE_REPO_IMPLEMENTATION_MODEL": "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
     "GITHUB_WRITE_MODE": "true",
     "TRIAGE_LABELS": "bug,enhancement,question,documentation,needs-repro,priority-low,priority-medium,priority-high",
+    "IMPLEMENTATION_REPO_OWNER": "t-nakatani",
+    "IMPLEMENTATION_REPO_NAME": "flue-framework",
+    "IMPLEMENTATION_BASE_BRANCH": "main",
+    "IMPLEMENTATION_BRANCH_PREFIX": "issue-implement/",
+    "IMPLEMENTATION_TRIGGER_LABEL": "agent:implement",
+    "IMPLEMENTATION_MAX_FILE_WRITES": "5",
+    "IMPLEMENTATION_MAX_FILE_CHARS": "200000",
     "GITHUB_MAX_BODY_CHARS": "12000",
     "GITHUB_MAX_DIFF_CHARS": "60000",
     "NODE_ENV": "production"
@@ -22,6 +30,12 @@
         "FlueGithubPrReviewerAgent",
         "FlueTriageIssueWorkflow",
         "FlueReviewPrWorkflow"
+      ]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": [
+        "FlueGithubIssueImplementerAgent"
       ]
     }
   ]
